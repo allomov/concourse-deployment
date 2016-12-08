@@ -3,9 +3,13 @@ name: concourse
 
 releases:
 - name: concourse
-  version: latest
+  version: 2.5.0
+  url: https://bosh.io/d/github.com/concourse/concourse?v=2.5.0
+  sha1: 0d1f436aad50bb09ac2c809cd6cb6df3e38a7767
 - name: garden-runc
-  version: latest
+  version: 1.0.3
+  url: https://bosh.io/d/github.com/cloudfoundry/garden-runc-release?v=1.0.3
+  sha1: 0c04b944d50ec778f5b34304fd4bc8fc0ed83b2b
 
 stemcells:
 - alias: trusty
@@ -13,22 +17,26 @@ stemcells:
   version: latest
 
 instance_groups:
-- name: councourse
+- name: concourse
   instances: 1
   vm_type: large
   stemcell: trusty
   azs: [z1]
-  networks: [{name: private}]
+  networks: 
+  - name: default
+    default: [dns, gateway]
+  - name: vip
+    static_ip: ((external_ip))
   jobs:
   - name: atc
     release: concourse
     properties:
       # replace with your CI's externally reachable URL, e.g. https://ci.foo.com
-      external_url: (( external_url ))
+      external_url: ((external_url))
 
       # replace with username/password, or configure GitHub auth
       basic_auth_username: admin
-      basic_auth_password: (( basic_auth_password ))
+      basic_auth_password: ((admin_password))
 
       # replace with your SSL cert and key
       tls_cert: ((atc_ssl.certificate))
@@ -55,6 +63,28 @@ instance_groups:
     properties:
       databases:
       - name: *atc_db
-        # make up a role and password
-        role: REPLACE_ME
+        role: atc
         password: ((postgres_password))
+
+update:
+  canaries: 1
+  max_in_flight: 1
+  serial: false
+  canary_watch_time: 1000-60000
+  update_watch_time: 1000-60000
+
+variables:
+- name: admin_password
+  type: password
+- name: postgres_password
+  type: password
+- name: default_ca
+  type: certificate
+  options:
+    common_name: ca # todo fix
+- name: atc_ssl
+  type: certificate
+  options:
+    ca: default_ca
+    common_name: 127.0.0.1
+    alternative_names: [((external_ip))]
